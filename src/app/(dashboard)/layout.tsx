@@ -16,11 +16,13 @@ import type { UserRole } from "@prisma/client";
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   let organizationName = "Mon Entreprise";
   let userEmail = "utilisateur@solvia.app";
+  let userDisplayName: string | undefined;
   let userRole = "admin";
 
   try {
     const authContext = await getAuthContext();
     userEmail = authContext.email;
+    userDisplayName = authContext.displayName;
     userRole = authContext.role;
 
     const org = await prisma.organization.findUnique({
@@ -45,6 +47,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <Header
           organizationName={organizationName}
           userEmail={userEmail}
+          userDisplayName={userDisplayName}
           userRole={userRole}
         />
         <main className="flex-1 overflow-y-auto px-8 py-8">

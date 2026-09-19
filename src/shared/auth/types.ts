@@ -6,6 +6,7 @@ export interface AuthContext {
   organizationId: string;
   role: UserRole;
   email: string;
+  displayName?: string;
   canReceiveAlerts: boolean;
   canRelanceClients: boolean;
 }
