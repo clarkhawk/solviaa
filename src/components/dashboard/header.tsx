@@ -58,7 +58,7 @@ interface HeaderProps {
  * Composant Header supérieur.
  */
 export function Header({
-  organizationName = "Mon Entreprise",
+  organizationName = "Back-office",
   userEmail = "utilisateur@solvia.app",
   userRole = "admin",
 }: HeaderProps) {

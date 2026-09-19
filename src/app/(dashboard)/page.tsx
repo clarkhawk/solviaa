@@ -208,9 +208,6 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold tracking-tight text-[#0F172A]">
             Tableau de bord de recouvrement
           </h1>
-          <p className="text-xs text-[#64748B]">
-            Surveillance en temps réel des impayés, échéances et clients à risque
-          </p>
         </div>
 
         <div className="flex items-center gap-3">
