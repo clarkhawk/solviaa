@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 # Solviaa
+=======
+
+>>>>>>> slm_10
 
 Plateforme web de recouvrement pour PME   suivi des échéances, impayés, relances et scoring de risque.
 

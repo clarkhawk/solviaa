@@ -3,8 +3,9 @@
 /**
  * @file header.tsx
  * @description Barre de navigation supérieure (Header) pour le tableau de bord Solvia.
- * Affiche l'organisation courante, la barre de recherche globale, la date du jour en français,
- * le raccourci d'importation de fichiers et le profil utilisateur.
+ * Affiche l'organisation courante, la barre de recherche globale, la date du jour en français
+ * avec info-bulle au survol, le raccourci d'importation de fichiers, les notifications
+ * et le profil utilisateur.
  *
  * Conforme à la Maquette 1 : design flat, zéro emoji, zéro dégradé.
  *
@@ -21,7 +22,38 @@ import {
   UploadCloud,
   LogOut,
   Building,
+  Calendar,
 } from "lucide-react";
+
+function startOfDay(date: Date) {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
+  return result;
+}
+
+function formatLongDate(date: Date) {
+  const formatted = new Intl.DateTimeFormat("fr-FR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
+}
+
+function formatToday(today: Date) {
+  const currentDay = startOfDay(today);
+  return formatLongDate(currentDay);
+}
+
+function formatShortDate(today: Date) {
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(startOfDay(today));
+}
 
 interface HeaderProps {
   organizationName?: string;
@@ -66,23 +98,16 @@ export function Header({
     setNotifications((items) => items.map((item) => ({ ...item, read: true })));
   }
 
-  // Date du jour formatée en français sans emoji
-  const todayFormatted = new Intl.DateTimeFormat("fr-FR", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(new Date());
-
-  // Capitalisation de la première lettre
-  const displayDate = todayFormatted.charAt(0).toUpperCase() + todayFormatted.slice(1);
-
   async function handleLogout() {
     const supabase = createSupabaseBrowserClient();
     await supabase.auth.signOut();
     router.push("/login");
     router.refresh();
   }
+
+  const today = new Date();
+  const todayTooltip = formatToday(today);
+  const todayLabel = formatShortDate(today);
 
   // Initiales pour l'avatar
   const initials = userEmail
@@ -101,8 +126,26 @@ export function Header({
           </span>
         </div>
 
-        <div className="hidden lg:block text-xs font-medium text-[#64748B]">
-          {displayDate}
+        <div className="hidden lg:block">
+          <div className="group relative">
+            <button
+              type="button"
+              aria-label={`Date du jour : ${todayTooltip}`}
+              aria-describedby="today-date-tooltip"
+              className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-[#64748B] transition-colors hover:bg-[#F8FAFC] hover:text-[#475569] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5]/30"
+            >
+              <Calendar className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>{todayLabel}</span>
+            </button>
+            <span
+              id="today-date-tooltip"
+              role="tooltip"
+              className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-[#0F172A] px-3 py-1.5 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+            >
+              {todayTooltip}
+              <span className="absolute bottom-full left-1/2 -ml-1 border-x-4 border-b-4 border-x-transparent border-b-[#0F172A]" />
+            </span>
+          </div>
         </div>
       </div>
 
@@ -160,7 +203,10 @@ export function Header({
 
         {/* Profil utilisateur & Déconnexion */}
         <div className="flex items-center gap-2.5 pl-2 border-l border-[#E2E8F0]">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#EEF2FF] text-xs font-bold text-[#4F46E5]">
+          <div
+            aria-label={`Profil de ${userEmail}`}
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#EEF2FF] text-xs font-bold text-[#4F46E5]"
+          >
             {initials}
           </div>
           <div className="hidden xl:block text-left">

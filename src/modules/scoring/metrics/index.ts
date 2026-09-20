@@ -1,4 +1,5 @@
 import type { MetricType, ScoringInput } from "../types";
+import { CURRENCY_SCALE, type SupportedCurrency } from "@/shared/currencies";
 
 export type MetricCalculator = (input: ScoringInput) => number;
 
@@ -7,6 +8,11 @@ const today = () => {
   d.setHours(0, 0, 0, 0);
   return d;
 };
+
+/** Ordre de grandeur "1 EUR ≈ N unités" pour la devise de l'input, 1 par défaut. */
+function currencyScale(input: ScoringInput): number {
+  return CURRENCY_SCALE[input.currency as SupportedCurrency] ?? 1;
+}
 
 export const METRIC_CALCULATORS: Record<MetricType, MetricCalculator> = {
   montant_en_retard: (input) => {
@@ -43,9 +49,13 @@ export const METRIC_CALCULATORS: Record<MetricType, MetricCalculator> = {
 };
 
 export const METRIC_NORMALIZERS: Record<MetricType, (raw: number, input: ScoringInput) => number> = {
-  montant_en_retard: (raw) => Math.min(100, (raw / 10000) * 100),
+  // Seuils historiquement calibrés en EUR (10 000 € de retard / 20 000 € d'exposition
+  // = risque maximal). Mis à l'échelle par la devise de l'organisation pour que le
+  // scoring reste pertinent en XOF, NGN, etc. — sans quoi ces seuils étaient atteints
+  // dès les premières petites factures pour toute organisation hors zone euro.
+  montant_en_retard: (raw, input) => Math.min(100, (raw / (10000 * currencyScale(input))) * 100),
   anciennete_retard: (raw) => Math.min(100, (raw / 90) * 100),
   taux_retard_historique: (raw) => raw * 100,
   nombre_factures_impayees: (raw) => Math.min(100, (raw / 10) * 100),
-  montant_total_exposition: (raw) => Math.min(100, (raw / 20000) * 100),
+  montant_total_exposition: (raw, input) => Math.min(100, (raw / (20000 * currencyScale(input))) * 100),
 };

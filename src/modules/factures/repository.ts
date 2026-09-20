@@ -53,6 +53,39 @@ export class InvoiceRepository {
     return { items: records.map(toDTO), total };
   }
 
+  async search(organizationId: string, query: string, limit: number): Promise<InvoiceDTO[]> {
+    const q = query.trim();
+    if (!q) return [];
+
+    const normalizedAmount = q.replace(/\s/g, "").replace(",", ".");
+    const numericValue = Number(normalizedAmount);
+    const or: Prisma.InvoiceWhereInput[] = [{ reference: { contains: q, mode: "insensitive" } }];
+    if (!Number.isNaN(numericValue) && numericValue > 0) {
+      or.push({ amount: numericValue });
+    }
+
+    const records = await prisma.invoice.findMany({
+      where: { organizationId, OR: or },
+      orderBy: { dueAt: "desc" },
+      take: limit * 2,
+    });
+
+    const items = records.map(toDTO);
+    if (Number.isNaN(numericValue) || numericValue <= 0) {
+      return items.slice(0, limit);
+    }
+
+    const amountQuery = normalizedAmount;
+    return items
+      .filter(
+        (invoice) =>
+          invoice.reference.toLowerCase().includes(q.toLowerCase()) ||
+          String(invoice.amount).includes(amountQuery) ||
+          String(invoice.amountRemaining).includes(amountQuery),
+      )
+      .slice(0, limit);
+  }
+
   async findOpenByClient(organizationId: string, clientId: string): Promise<InvoiceDTO[]> {
     const records = await prisma.invoice.findMany({
       where: {

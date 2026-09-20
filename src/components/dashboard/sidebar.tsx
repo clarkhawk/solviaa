@@ -11,9 +11,13 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import type { UserRole } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { createSupabaseBrowserClient } from "@/shared/auth/supabase-browser";
+import { roleHasPermission } from "@/shared/auth/rbac";
+import type { Permission } from "@/shared/auth/types";
 import {
   LayoutDashboard,
   FileText,
@@ -26,16 +30,24 @@ import {
   LogOut,
   HelpCircle,
   Building2,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
+
+const SIDEBAR_COLLAPSED_KEY = "solvia-sidebar-collapsed";
 
 /**
  * Structure d'un élément de navigation.
+ * `permission`, si défini, masque le lien pour tout rôle qui ne l'a pas —
+ * évite d'envoyer un utilisateur vers une page dont l'API lui répondra 403
+ * (voir scoring/page.tsx, qui plantait sur ce cas précis).
  */
 interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
   badge?: string;
+  permission?: Permission;
 }
 
 /**
@@ -50,15 +62,31 @@ const mainNav: NavItem[] = [
 ];
 
 const settingsNav: NavItem[] = [
-  { href: "/scoring", label: "Scoring de Risque", icon: Sliders },
-  { href: "/settings/organization", label: "Entreprise & Devise", icon: Building2 },
-  { href: "/settings/team", label: "Équipe & Permissions", icon: ShieldCheck },
-  { href: "/settings/ai-provider", label: "Moteur IA (BYOK)", icon: Bot },
+  { href: "/scoring", label: "Scoring de Risque", icon: Sliders, permission: "scoring:configure" },
+  { href: "/settings/organization", label: "Entreprise & Devise", icon: Building2, permission: "organization:manage" },
+  { href: "/settings/team", label: "Équipe & Permissions", icon: ShieldCheck, permission: "team:manage" },
+  { href: "/settings/ai-provider", label: "Moteur IA (BYOK)", icon: Bot, permission: "ai:configure" },
 ];
 
-export function Sidebar() {
+export function Sidebar({ userRole }: { userRole: UserRole }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const visibleSettingsNav = settingsNav.filter(
+    (item) => !item.permission || roleHasPermission(userRole, item.permission),
+  );
+
+  useEffect(() => {
+    setIsCollapsed(window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
+  }, []);
+
+  function toggleSidebar() {
+    setIsCollapsed((collapsed) => {
+      const nextCollapsed = !collapsed;
+      window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(nextCollapsed));
+      return nextCollapsed;
+    });
+  }
 
   async function handleLogout() {
     const supabase = createSupabaseBrowserClient();
@@ -68,17 +96,38 @@ export function Sidebar() {
   }
 
   return (
-    <aside className="flex h-screen w-64 flex-col border-r border-[#E2E8F0] bg-white">
+    <aside
+      className={cn(
+        "flex h-screen shrink-0 flex-col border-r border-[#E2E8F0] bg-white transition-[width] duration-300 ease-in-out",
+        isCollapsed ? "w-16" : "w-64",
+      )}
+    >
       {/* En-tête avec Logo Solvia */}
-      <div className="flex h-16 items-center gap-2.5 border-b border-[#E2E8F0] px-6">
-        <Image src="/logo.png" alt="Solviaa" width={128} height={32} className="h-8 w-auto object-contain" />
+      <div className={cn("flex h-16 items-center border-b border-[#E2E8F0]", isCollapsed ? "justify-center px-2" : "gap-2.5 px-6")}>
+        <Image
+          src="/logo.png"
+          alt="Solviaa"
+          width={128}
+          height={32}
+          className={cn("h-8 w-auto object-contain transition-opacity duration-200", isCollapsed ? "w-0 opacity-0" : "opacity-100")}
+        />
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-pressed={isCollapsed}
+          aria-label={isCollapsed ? "Déplier le menu" : "Replier le menu"}
+          title={isCollapsed ? "Déplier le menu" : "Replier le menu"}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#64748B] transition-colors hover:bg-[#F8FAFC] hover:text-[#4F46E5]"
+        >
+          {isCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+        </button>
       </div>
 
       {/* Navigation principale */}
-      <div className="flex flex-1 flex-col overflow-y-auto px-4 py-6">
+      <div className={cn("flex flex-1 flex-col overflow-y-auto py-6", isCollapsed ? "px-2" : "px-4")}>
         {/* Section Gestion */}
         <div className="mb-6">
-          <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+          <p className={cn("mb-2 overflow-hidden px-3 text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8] transition-opacity duration-200", isCollapsed ? "h-0 opacity-0" : "h-4 opacity-100")}>
             Gestion
           </p>
           <nav className="space-y-1">
@@ -89,18 +138,20 @@ export function Sidebar() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  title={isCollapsed ? item.label : undefined}
                   className={cn(
-                    "flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold transition-all",
+                    "flex items-center justify-between rounded-xl py-2 text-xs font-semibold transition-all",
+                    isCollapsed ? "justify-center px-3" : "px-3",
                     isActive
                       ? "bg-[#EEF2FF] text-[#4F46E5]"
                       : "text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#0F172A]",
                   )}
                 >
-                  <div className="flex items-center gap-3">
+                  <div className={cn("flex items-center", isCollapsed ? "justify-center" : "gap-3")}>
                     <Icon className={cn("h-4 w-4", isActive ? "text-[#4F46E5]" : "text-[#94A3B8]")} />
-                    <span>{item.label}</span>
+                    <span className={cn("overflow-hidden whitespace-nowrap transition-[width,opacity] duration-200", isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100")}>{item.label}</span>
                   </div>
-                  {item.badge && (
+                  {item.badge && !isCollapsed && (
                     <span className="rounded-md bg-[#EEF2FF] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#4F46E5]">
                       {item.badge}
                     </span>
@@ -113,26 +164,28 @@ export function Sidebar() {
 
         {/* Section Configuration */}
         <div className="mb-6">
-          <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+          <p className={cn("mb-2 overflow-hidden px-3 text-[11px] font-semibold uppercase tracking-wider text-[#94A3B8] transition-opacity duration-200", isCollapsed ? "h-0 opacity-0" : "h-4 opacity-100")}>
             Configuration
           </p>
           <nav className="space-y-1">
-            {settingsNav.map((item) => {
+            {visibleSettingsNav.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href;
               return (
                 <Link
                   key={item.href}
                   href={item.href}
+                  title={isCollapsed ? item.label : undefined}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-2 text-xs font-semibold transition-all",
+                    "flex items-center rounded-xl py-2 text-xs font-semibold transition-all",
+                    isCollapsed ? "justify-center px-3" : "gap-3 px-3",
                     isActive
                       ? "bg-[#EEF2FF] text-[#4F46E5]"
                       : "text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#0F172A]",
                   )}
                 >
                   <Icon className={cn("h-4 w-4", isActive ? "text-[#4F46E5]" : "text-[#94A3B8]")} />
-                  <span>{item.label}</span>
+                  <span className={cn("overflow-hidden whitespace-nowrap transition-[width,opacity] duration-200", isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100")}>{item.label}</span>
                 </Link>
               );
             })}
@@ -140,7 +193,7 @@ export function Sidebar() {
         </div>
 
         {/* Bloc d'aide & support */}
-        <div className="mt-auto rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 text-xs">
+        <div className={cn("mt-auto overflow-hidden rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] text-xs transition-[height,opacity,padding] duration-200", isCollapsed ? "h-0 border-0 p-0 opacity-0" : "p-4 opacity-100")}>
           <div className="flex items-center gap-2 text-[#0F172A] font-semibold mb-1">
             <HelpCircle className="h-4 w-4 text-[#4F46E5]" />
             <span>Support & Documentation</span>
@@ -160,14 +213,16 @@ export function Sidebar() {
       </div>
 
       {/* Pied de sidebar */}
-      <div className="border-t border-[#E2E8F0] p-4">
+      <div className={cn("border-t border-[#E2E8F0]", isCollapsed ? "p-2" : "p-4")}>
         <button
           type="button"
           onClick={handleLogout}
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-xs font-semibold text-[#64748B] transition-colors hover:bg-[#FEF2F2] hover:text-[#EF4444]"
+          aria-label="Déconnexion"
+          title={isCollapsed ? "Déconnexion" : undefined}
+          className={cn("flex w-full items-center rounded-xl py-2 text-xs font-semibold text-[#64748B] transition-colors hover:bg-[#FEF2F2] hover:text-[#EF4444]", isCollapsed ? "justify-center px-3" : "gap-3 px-3")}
         >
           <LogOut className="h-4 w-4" />
-          <span>Déconnexion</span>
+          <span className={cn("overflow-hidden whitespace-nowrap transition-[width,opacity] duration-200", isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100")}>Déconnexion</span>
         </button>
       </div>
     </aside>

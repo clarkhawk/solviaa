@@ -58,6 +58,37 @@ export class ClientRepository {
     return { items: records.map(toDTO), total };
   }
 
+  async findAll(organizationId: string): Promise<ClientDTO[]> {
+    const records = await prisma.client.findMany({
+      where: { organizationId },
+      orderBy: { createdAt: "desc" },
+    });
+    return records.map(toDTO);
+  }
+
+  async search(organizationId: string, query: string, limit: number): Promise<ClientDTO[]> {
+    const q = query.toLowerCase().trim();
+    if (!q) return [];
+
+    const records = await prisma.client.findMany({ where: { organizationId } });
+    return records
+      .map(toDTO)
+      .filter((client) => {
+        const haystack = [
+          client.identity.name,
+          client.identity.companyName,
+          client.contact.email,
+          client.contact.phone,
+          client.externalCode,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(q);
+      })
+      .slice(0, limit);
+  }
+
   async create(organizationId: string, input: CreateClientInput): Promise<ClientDTO> {
     const emailHash = input.contact.email ? hashEmail(input.contact.email) : null;
     const record = await prisma.client.create({

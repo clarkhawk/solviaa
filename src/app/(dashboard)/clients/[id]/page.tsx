@@ -16,7 +16,10 @@ export default function ClientDetailPage() {
     const [clientRes, invoicesRes, scoresRes] = await Promise.all([fetch(`/api/v1/clients/${id}`), fetch(`/api/v1/invoices?clientId=${id}&limit=100`), fetch("/api/v1/scoring/clients")]);
     if (clientRes.ok) setClient(await clientRes.json());
     if (invoicesRes.ok) setInvoices((await invoicesRes.json()).items ?? []);
-    if (scoresRes.ok) setScore((await scoresRes.json()).find((item: { clientId: string }) => item.clientId === id)?.result.score ?? 0);
+    if (scoresRes.ok) {
+      const scoresData = await scoresRes.json();
+      setScore(scoresData.items?.find((item: { clientId: string }) => item.clientId === id)?.result.score ?? 0);
+    }
   })(); }, [id]);
   if (!client) return <p className="text-sm text-[#64748B]">Chargement du client...</p>;
   const outstanding = invoices.reduce((sum, invoice) => sum + Number(invoice.amountRemaining), 0);

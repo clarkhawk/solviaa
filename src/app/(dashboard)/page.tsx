@@ -12,8 +12,9 @@
  * @module app/(dashboard)/page
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { DashboardAnalytics } from "@/components/dashboard/analytics-section";
 import { PresentationModeToggle } from "@/components/dashboard/presentation-mode";
@@ -29,6 +30,7 @@ import {
   ShieldAlert,
   Loader2,
   Calendar,
+  Search,
 } from "lucide-react";
 
 /**
@@ -76,16 +78,41 @@ function formatCurrency(amount: number, currency = "EUR") {
  */
 interface AtRiskClient {
   clientId: string;
+  clientName: string;
   result: {
     score: number;
     isAtRisk: boolean;
   };
 }
 
+interface SearchClientHit {
+  type: "client";
+  id: string;
+  name: string;
+  externalCode: string | null;
+  email: string | null;
+}
+
+interface SearchInvoiceHit {
+  type: "invoice";
+  id: string;
+  reference: string;
+  amountRemaining: number;
+  status: string;
+  clientId: string;
+}
+
 export default function DashboardPage() {
+  const router = useRouter();
   const [data, setData] = useState<DashboardData | null>(null);
   const [atRisk, setAtRisk] = useState<AtRiskClient[]>([]);
+  const [riskThreshold, setRiskThreshold] = useState(70);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<{ clients: SearchClientHit[]; invoices: SearchInvoiceHit[] } | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchPanelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -103,8 +130,13 @@ export default function DashboardPage() {
         }
 
         if (isMounted && scoringRes.ok) {
-          const scoringJson: AtRiskClient[] = await scoringRes.json();
-          setAtRisk(scoringJson.filter((item) => item.result.isAtRisk).slice(0, 5));
+          const scoringJson = await scoringRes.json();
+          setRiskThreshold(scoringJson.riskThreshold ?? 70);
+          setAtRisk(
+            (scoringJson.items ?? [])
+              .filter((item: AtRiskClient) => item.result.isAtRisk)
+              .slice(0, 5),
+          );
         }
       } catch (err) {
         console.error("Erreur lors du chargement des métriques :", err);
@@ -119,6 +151,55 @@ export default function DashboardPage() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (trimmed.length < 2) {
+      setSearchResults(null);
+      setSearchLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+    setSearchLoading(true);
+
+    const timer = window.setTimeout(() => {
+      fetch(`/api/v1/search?q=${encodeURIComponent(trimmed)}`)
+        .then(async (response) => {
+          if (!isMounted) return;
+          if (!response.ok) {
+            setSearchResults(null);
+            return;
+          }
+          setSearchResults(await response.json());
+        })
+        .catch(() => {
+          if (isMounted) setSearchResults(null);
+        })
+        .finally(() => {
+          if (isMounted) setSearchLoading(false);
+        });
+    }, 300);
+
+    return () => {
+      isMounted = false;
+      window.clearTimeout(timer);
+    };
+  }, [searchQuery]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (!searchPanelRef.current?.contains(event.target as Node)) {
+        setSearchOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const hasSearchResults =
+    !!searchResults && (searchResults.clients.length > 0 || searchResults.invoices.length > 0);
 
   return (
     <div className="space-y-8">
@@ -152,6 +233,90 @@ export default function DashboardPage() {
             <span>Toutes les factures</span>
           </Link>
         </div>
+      </div>
+
+      <div className="relative max-w-xl" ref={searchPanelRef}>
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(event) => {
+            setSearchQuery(event.target.value);
+            setSearchOpen(true);
+          }}
+          onFocus={() => setSearchOpen(true)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setSearchOpen(false);
+          }}
+          placeholder="Rechercher une facture, un client, un montant..."
+          className="w-full rounded-xl border border-[#E2E8F0] bg-white py-2 pl-9 pr-4 text-xs text-[#0F172A] placeholder-[#94A3B8] shadow-sm transition-colors focus:border-[#4F46E5] focus:outline-none focus:ring-2 focus:ring-[#4F46E5]/10"
+        />
+        {searchOpen && searchQuery.trim().length >= 2 && (
+          <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-[#E2E8F0] bg-white shadow-lg">
+            {searchLoading ? (
+              <div className="flex items-center gap-2 p-4 text-xs text-[#64748B]">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Recherche en cours...
+              </div>
+            ) : hasSearchResults ? (
+              <div className="max-h-72 overflow-y-auto p-2">
+                {searchResults.clients.length > 0 && (
+                  <div className="mb-2">
+                    <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+                      Clients
+                    </p>
+                    {searchResults.clients.map((client) => (
+                      <button
+                        key={client.id}
+                        type="button"
+                        onClick={() => {
+                          setSearchOpen(false);
+                          setSearchQuery("");
+                          router.push(`/clients/${client.id}`);
+                        }}
+                        className="block w-full rounded-lg px-2 py-2 text-left text-xs transition-colors hover:bg-[#F8FAFC]"
+                      >
+                        <p className="font-semibold text-[#0F172A]">{client.name}</p>
+                        <p className="text-[11px] text-[#64748B]">
+                          {client.externalCode ?? client.email ?? "Client"}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {searchResults.invoices.length > 0 && (
+                  <div>
+                    <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+                      Factures
+                    </p>
+                    {searchResults.invoices.map((invoice) => (
+                      <button
+                        key={invoice.id}
+                        type="button"
+                        onClick={() => {
+                          setSearchOpen(false);
+                          setSearchQuery("");
+                          router.push(`/invoices/${invoice.id}`);
+                        }}
+                        className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-xs transition-colors hover:bg-[#F8FAFC]"
+                      >
+                        <div>
+                          <p className="font-semibold text-[#0F172A]">{invoice.reference}</p>
+                          <p className="text-[11px] text-[#64748B]">Reste dû · {invoice.status}</p>
+                        </div>
+                        <span className="font-semibold text-[#0F172A]">
+                          {formatCurrency(invoice.amountRemaining, data?.currency)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="p-4 text-xs text-[#64748B]">Aucun résultat pour « {searchQuery.trim()} »</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Grille des 4 KPI Cards inspirée de la Maquette 1 */}
@@ -408,7 +573,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-sm font-bold text-[#0F172A]">Clients à risque prioritaire</h3>
-              <p className="text-xs text-[#64748B]">Score de risque ≥ 70 / 100</p>
+              <p className="text-xs text-[#64748B]">Score de risque ≥ {riskThreshold} / 100</p>
             </div>
             <Link
               href="/scoring"
@@ -421,18 +586,17 @@ export default function DashboardPage() {
           <div className="space-y-2.5">
             {atRisk.length > 0 ? (
               atRisk.map((c) => (
-                <div
+                <Link
                   key={c.clientId}
-                  className="flex items-center justify-between rounded-xl border border-[#FEE2E2] bg-[#FEF2F2]/50 p-3"
+                  href={`/clients/${c.clientId}`}
+                  className="flex items-center justify-between rounded-xl border border-[#FEE2E2] bg-[#FEF2F2]/50 p-3 transition-colors hover:bg-[#FEF2F2]"
                 >
                   <div className="flex items-center gap-2.5">
                     <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#EF4444] text-white text-xs font-bold">
                       !
                     </div>
                     <div>
-                      <p className="font-mono text-xs font-bold text-[#0F172A]">
-                        Client {c.clientId.slice(0, 8)}…
-                      </p>
+                      <p className="text-xs font-bold text-[#0F172A]">{c.clientName}</p>
                       <p className="text-[10px] text-[#991B1B]">Probabilité de retard critique</p>
                     </div>
                   </div>
@@ -440,7 +604,7 @@ export default function DashboardPage() {
                   <span className="rounded-full bg-[#EF4444] px-2.5 py-0.5 text-xs font-bold text-white">
                     Score {c.result.score}
                   </span>
-                </div>
+                </Link>
               ))
             ) : (
               <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-6 text-center text-xs text-[#64748B]">

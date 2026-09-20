@@ -34,4 +34,16 @@ describe("ScoringCalculatorService", () => {
     });
     expect(result.score).toBe(0);
   });
+
+  it("scales monetary thresholds to the organization's currency", () => {
+    // 1000 XOF de retard ≈ 1,50 € — négligeable, ne doit pas saturer le score
+    // comme le ferait 1000 € (bug historique : seuils codés en dur en EUR).
+    const xofInput: ScoringInput = { ...baseInput, currency: "XOF" };
+    const eurInput: ScoringInput = { ...baseInput, currency: "EUR" };
+
+    const xofResult = calculator.compute(xofInput, { criteria: DEFAULT_CRITERIA, riskThreshold: 70 });
+    const eurResult = calculator.compute(eurInput, { criteria: DEFAULT_CRITERIA, riskThreshold: 70 });
+
+    expect(xofResult.score).toBeLessThan(eurResult.score);
+  });
 });

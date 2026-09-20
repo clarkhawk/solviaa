@@ -2,6 +2,7 @@ import type { AlertType } from "@prisma/client";
 import { prisma } from "@/shared/db/prisma";
 import { invoiceRepository } from "@/modules/factures/repository";
 import { clientRepository } from "@/modules/clients/repository";
+import { formatMoney } from "@/shared/currencies";
 import type { AlertNotificationPayload } from "./types";
 import { InAppNotifier } from "./notifiers/in-app.notifier";
 import { EmailNotifier } from "./notifiers/email.notifier";
@@ -15,9 +16,13 @@ function getAlertType(dueAt: Date, today: Date): AlertType | null {
 
   const diffDays = Math.floor((due.getTime() - t.getTime()) / 86400000);
 
-  if (diffDays === 7) return "due_in_7";
-  if (diffDays === 0) return "due_today";
-  if (diffDays === -7) return "overdue_7";
+  // Plages plutôt qu'égalité stricte : si le cron saute un jour (déploiement,
+  // panne), le palier n'est pas perdu, il est rattrapé au run suivant.
+  // Chaque palier n'est de toute façon envoyé qu'une seule fois par facture,
+  // via le statut "sent" de l'AlertEvent correspondant (voir runForOrganization).
+  if (diffDays <= -7) return "overdue_7";
+  if (diffDays <= 0) return "due_today";
+  if (diffDays <= 7) return "due_in_7";
   return null;
 }
 
@@ -48,6 +53,12 @@ export class AlertEngineService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { currency: true },
+    });
+    const currency = organization?.currency ?? "EUR";
+
     const invoices = await invoiceRepository.findDueForAlerts(organizationId, today);
     let alertCount = 0;
 
@@ -76,7 +87,7 @@ export class AlertEngineService {
       const client = await clientRepository.findById(organizationId, invoice.clientId);
       const payload: AlertNotificationPayload = {
         title: ALERT_LABELS[alertType],
-        message: `Facture ${invoice.reference} — ${client?.identity.name ?? "Client"} — ${invoice.amountRemaining.toFixed(2)} EUR restants`,
+        message: `Facture ${invoice.reference} — ${client?.identity.name ?? "Client"} — ${formatMoney(invoice.amountRemaining, currency)} restants`,
         invoiceReference: invoice.reference,
         clientName: client?.identity.name ?? "Client",
         dueAt: invoice.dueAt,

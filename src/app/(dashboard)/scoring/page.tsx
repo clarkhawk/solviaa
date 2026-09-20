@@ -8,26 +8,54 @@ interface ScoringConfig {
   riskThreshold: number;
 }
 
+interface ApiError {
+  error: string;
+  code?: string;
+}
+
 export default function ScoringPage() {
   const [config, setConfig] = useState<ScoringConfig | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     fetch("/api/v1/scoring")
-      .then((r) => r.json())
-      .then(setConfig)
-      .catch(console.error);
+      .then(async (r) => {
+        const body = await r.json();
+        if (!r.ok) {
+          // L'API renvoie { error, code, requestId } sur 401/403/500 — jamais
+          // { criteria, riskThreshold }. Sans cette vérification, ce corps
+          // d'erreur finissait dans setConfig() et faisait planter le rendu
+          // plus bas sur `config.criteria.filter(...)`.
+          throw new Error((body as ApiError).error ?? "Impossible de charger la configuration.");
+        }
+        setConfig(body as ScoringConfig);
+      })
+      .catch((err) => setLoadError(err instanceof Error ? err.message : "Erreur inconnue."));
   }, []);
 
   async function handleSave() {
-    if (!config) return;
-    await fetch("/api/v1/scoring", {
+    if (!config || totalWeight !== 1) return;
+    const response = await fetch("/api/v1/scoring", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(config),
     });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as ApiError | null;
+      setLoadError(body?.error ?? "Échec de l'enregistrement.");
+      return;
+    }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  }
+
+  if (loadError) {
+    return (
+      <div className="rounded-2xl border border-[#FECACA] bg-[#FEF2F2] p-4 text-xs text-[#B91C1C]">
+        {loadError}
+      </div>
+    );
   }
 
   if (!config) {
@@ -61,7 +89,7 @@ export default function ScoringPage() {
                 }}
               />
             </div>
-            
+
             <div className="flex-1">
               <label className="text-[11px] font-semibold text-[#64748B] uppercase tracking-wider mb-1 block">Type de métrique</label>
               <select
@@ -80,7 +108,7 @@ export default function ScoringPage() {
                 <option value="montant_total_exposition">Exposition totale</option>
               </select>
             </div>
-            
+
             <div className="w-32">
               <label className="text-[11px] font-semibold text-[#64748B] uppercase tracking-wider mb-1 flex justify-between">
                 Poids <span>{Math.round(c.weight * 100)}%</span>
@@ -145,7 +173,7 @@ export default function ScoringPage() {
                 {config.riskThreshold}
               </span>
             </div>
-            
+
             <div className="flex justify-between mt-2 text-[10px] text-[#94A3B8] px-1">
               <span>0 (Excellent)</span>
               <span>100 (Critique)</span>
@@ -155,7 +183,9 @@ export default function ScoringPage() {
           <div className="flex items-end">
             <button
               onClick={handleSave}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#4F46E5] px-6 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#4338CA]"
+              disabled={totalWeight !== 1}
+              title={totalWeight !== 1 ? "Le total des poids actifs doit être égal à 100 %" : undefined}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#4F46E5] px-6 py-2.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#4338CA] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-[#4F46E5]"
             >
               {saved ? "Enregistré ✓" : "Enregistrer la configuration"}
             </button>

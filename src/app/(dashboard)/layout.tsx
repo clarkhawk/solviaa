@@ -11,6 +11,7 @@ import { Sidebar } from "@/components/dashboard/sidebar";
 import { Header } from "@/components/dashboard/header";
 import { getAuthContext } from "@/shared/auth/get-auth-context";
 import { prisma } from "@/shared/db/prisma";
+import type { UserRole } from "@prisma/client";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   let organizationName = "Mon Entreprise";
@@ -37,7 +38,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="flex h-screen overflow-hidden bg-[#F8FAFC]">
       {/* Barre latérale fixée */}
-      <Sidebar />
+      <Sidebar userRole={userRole as UserRole} />
 
       {/* Contenu principal et Header */}
       <div className="flex flex-1 flex-col overflow-hidden">

@@ -24,9 +24,10 @@ export default function ClientsPage() {
     try {
       const [clientsRes, invoicesRes, scoresRes] = await Promise.all([fetch("/api/v1/clients?limit=100"), fetch("/api/v1/invoices?limit=100"), fetch("/api/v1/scoring/clients")]);
       const [clientsData, invoicesData, scoresData] = await Promise.all([clientsRes.json(), invoicesRes.json(), scoresRes.json()]);
+      const scoreItems = scoresData.items ?? [];
       setClients((clientsData.items ?? []).map((client: ClientDTO) => {
         const invoices = (invoicesData.items ?? []).filter((invoice: { clientId: string }) => invoice.clientId === client.id);
-        const score = scoresData.find((entry: { clientId: string }) => entry.clientId === client.id)?.result.score ?? 0;
+        const score = scoreItems.find((entry: { clientId: string }) => entry.clientId === client.id)?.result.score ?? 0;
         return { ...client, invoiceCount: invoices.length, totalAmountDue: invoices.reduce((sum: number, invoice: { amountRemaining: number | string }) => sum + Number(invoice.amountRemaining), 0), riskScore: score };
       }));
     } catch { setError("Impossible de charger les clients."); } finally { setLoading(false); }

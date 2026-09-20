@@ -2,7 +2,8 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/shared/db/prisma";
 import { logAuditEvent } from "@/shared/audit/audit-log";
 import { scoringCalculatorService, validateCriteria } from "./calculator.service";
-import type { ScoringConfigDTO, ScoringCriterion, ScoringInput, ScoringResult } from "./types";
+import { clientRepository } from "@/modules/clients/repository";
+import type { ClientScoringListDTO, ScoringConfigDTO, ScoringCriterion, ScoringInput, ScoringResult } from "./types";
 import { DEFAULT_CRITERIA } from "./types";
 
 export class ScoringConfigService {
@@ -62,9 +63,15 @@ export class ScoringConfigService {
     return scoringCalculatorService.compute(input, config);
   }
 
-  async computeAllClients(organizationId: string): Promise<Array<{ clientId: string; result: ScoringResult }>> {
-    const clients = await prisma.client.findMany({ where: { organizationId } });
-    const results: Array<{ clientId: string; result: ScoringResult }> = [];
+  async computeAllClients(organizationId: string): Promise<ClientScoringListDTO> {
+    const config = await this.getConfig(organizationId);
+    const organization = await prisma.organization.findUnique({
+      where: { id: organizationId },
+      select: { currency: true },
+    });
+
+    const clients = await clientRepository.findAll(organizationId);
+    const results: ClientScoringListDTO["items"] = [];
 
     for (const client of clients) {
       const invoices = await prisma.invoice.findMany({ where: { clientId: client.id } });
@@ -72,6 +79,7 @@ export class ScoringConfigService {
 
       const input: ScoringInput = {
         clientId: client.id,
+        currency: organization?.currency,
         invoices: invoices.map((i) => ({
           id: i.id,
           amount: Number(i.amount),
@@ -86,11 +94,18 @@ export class ScoringConfigService {
         })),
       };
 
-      const result = await this.computeForClient(organizationId, input);
-      results.push({ clientId: client.id, result });
+      const result = scoringCalculatorService.compute(input, config);
+      results.push({
+        clientId: client.id,
+        clientName: client.identity.name,
+        result,
+      });
     }
 
-    return results.sort((a, b) => b.result.score - a.result.score);
+    return {
+      riskThreshold: config.riskThreshold,
+      items: results.sort((a, b) => b.result.score - a.result.score),
+    };
   }
 }
 
