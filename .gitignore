@@ -102,3 +102,14 @@ WORKLOG.local.md
 .windsurf/
 .zcode/
 .zencoder/
+.agent/
+.cline/
+.codewhale/
+.factory/
+.firebender/
+.opencode/
+_bmad/
+data/skills/
+skills-lock.json
+skills/
+.github/
