@@ -3,24 +3,17 @@
 /**
  * @file header.tsx
  * @description Barre de navigation supérieure (Header) pour le tableau de bord Solvia.
- * Affiche l'organisation courante, la barre de recherche globale, la date du jour en français
- * avec info-bulle au survol, le raccourci d'importation de fichiers, les notifications
- * et le profil utilisateur.
+ * Affiche l'organisation courante, la date du jour en français, les notifications
+ * et l'avatar utilisateur.
  *
  * Conforme à la Maquette 1 : design flat, zéro emoji, zéro dégradé.
  *
  * @module components/dashboard/header
  */
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { createSupabaseBrowserClient } from "@/shared/auth/supabase-browser";
 import {
-  Search,
   Bell,
-  UploadCloud,
-  LogOut,
   Building,
   Calendar,
 } from "lucide-react";
@@ -58,6 +51,7 @@ function formatShortDate(today: Date) {
 interface HeaderProps {
   organizationName?: string;
   userEmail?: string;
+  userDisplayName?: string;
   userRole?: string;
 }
 
@@ -67,9 +61,9 @@ interface HeaderProps {
 export function Header({
   organizationName = "Mon Entreprise",
   userEmail = "utilisateur@solvia.app",
+  userDisplayName,
   userRole = "admin",
 }: HeaderProps) {
-  const router = useRouter();
   const [notifications, setNotifications] = useState<Array<{ id: string; title: string; message: string; read: boolean; createdAt: string }>>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const notificationPanel = useRef<HTMLDivElement>(null);
@@ -98,13 +92,6 @@ export function Header({
     setNotifications((items) => items.map((item) => ({ ...item, read: true })));
   }
 
-  async function handleLogout() {
-    const supabase = createSupabaseBrowserClient();
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
-  }
-
   const today = new Date();
   const todayTooltip = formatToday(today);
   const todayLabel = formatShortDate(today);
@@ -116,7 +103,7 @@ export function Header({
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-[#E2E8F0] bg-white px-6">
-      {/* Partie gauche : Organisation & Date */}
+      {/* Partie gauche : Organisation */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] px-3 py-1.5">
           <Building className="h-4 w-4 text-[#4F46E5]" />
@@ -126,7 +113,11 @@ export function Header({
           </span>
         </div>
 
-        <div className="hidden lg:block">
+      </div>
+
+      {/* Partie droite : Notifications & Profil */}
+      <div className="flex items-center gap-3">
+        <div className="relative hidden lg:block">
           <div className="group relative">
             <button
               type="button"
@@ -147,30 +138,6 @@ export function Header({
             </span>
           </div>
         </div>
-      </div>
-
-      {/* Partie centrale : Barre de recherche inspirée de la Maquette 1 */}
-      <div className="hidden md:flex flex-1 max-w-md mx-6">
-        <div className="relative w-full">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
-          <input
-            type="text"
-            placeholder="Rechercher une facture, un client, un montant..."
-            className="w-full rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] py-1.5 pl-9 pr-4 text-xs text-[#0F172A] placeholder-[#94A3B8] transition-colors focus:border-[#4F46E5] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#4F46E5]/10"
-          />
-        </div>
-      </div>
-
-      {/* Partie droite : Raccourci Import, Notifications & Profil */}
-      <div className="flex items-center gap-3">
-        {/* Bouton d'action rapide vers l'import */}
-        <Link
-          href="/import"
-          className="inline-flex items-center gap-2 rounded-xl bg-[#4F46E5] px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#4338CA] focus:outline-none focus:ring-2 focus:ring-[#4F46E5]"
-        >
-          <UploadCloud className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Importer CSV / Excel</span>
-        </Link>
 
         {/* Cloche de notifications */}
         <div className="relative" ref={notificationPanel}>
@@ -201,29 +168,26 @@ export function Header({
           )}
         </div>
 
-        {/* Profil utilisateur & Déconnexion */}
-        <div className="flex items-center gap-2.5 pl-2 border-l border-[#E2E8F0]">
-          <div
-            aria-label={`Profil de ${userEmail}`}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#EEF2FF] text-xs font-bold text-[#4F46E5]"
-          >
-            {initials}
-          </div>
-          <div className="hidden xl:block text-left">
-            <p className="text-xs font-semibold text-[#0F172A] leading-tight truncate max-w-[140px]">
-              {userEmail}
-            </p>
-            <p className="text-[10px] text-[#64748B] leading-tight">Connecté</p>
-          </div>
-
+        {/* Avatar utilisateur */}
+        <div className="group relative border-l border-[#E2E8F0] pl-2">
           <button
             type="button"
-            onClick={handleLogout}
-            title="Déconnexion"
-            className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#E2E8F0] text-[#64748B] transition-colors hover:bg-[#FEF2F2] hover:border-[#FEE2E2] hover:text-[#EF4444]"
+            aria-label={`Profil de ${userEmail}`}
+            aria-describedby="user-profile-tooltip"
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#EEF2FF] text-xs font-bold text-[#4F46E5] transition-colors hover:bg-[#E0E7FF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5]/30"
           >
-            <LogOut className="h-4 w-4" />
+            {initials}
           </button>
+          <div
+            id="user-profile-tooltip"
+            role="tooltip"
+            className="pointer-events-none absolute right-0 top-12 z-50 w-56 rounded-lg bg-[#0F172A] p-3 text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+          >
+            <p className="truncate text-xs font-semibold">{userDisplayName || userEmail}</p>
+            <p className="mt-1 truncate text-[11px] text-[#CBD5E1]">{userEmail}</p>
+            <p className="mt-1 text-[10px] text-[#94A3B8]">Connecté</p>
+            <span className="absolute right-3 bottom-full border-x-4 border-b-4 border-x-transparent border-b-[#0F172A]" />
+          </div>
         </div>
       </div>
     </header>
