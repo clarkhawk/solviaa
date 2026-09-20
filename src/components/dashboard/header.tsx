@@ -58,6 +58,7 @@ function formatShortDate(today: Date) {
 interface HeaderProps {
   organizationName?: string;
   userEmail?: string;
+  userDisplayName?: string;
   userRole?: string;
 }
 
@@ -67,6 +68,7 @@ interface HeaderProps {
 export function Header({
   organizationName = "Mon Entreprise",
   userEmail = "utilisateur@solvia.app",
+  userDisplayName,
   userRole = "admin",
 }: HeaderProps) {
   const router = useRouter();
@@ -201,13 +203,25 @@ export function Header({
           )}
         </div>
 
-        {/* Profil utilisateur & Déconnexion */}
-        <div className="flex items-center gap-2.5 pl-2 border-l border-[#E2E8F0]">
-          <div
+        {/* Avatar utilisateur */}
+        <div className="group relative border-l border-[#E2E8F0] pl-2">
+          <button
+            type="button"
             aria-label={`Profil de ${userEmail}`}
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#EEF2FF] text-xs font-bold text-[#4F46E5]"
+            aria-describedby="user-profile-tooltip"
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#EEF2FF] text-xs font-bold text-[#4F46E5] transition-colors hover:bg-[#E0E7FF] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4F46E5]/30"
           >
             {initials}
+          </button>
+          <div
+            id="user-profile-tooltip"
+            role="tooltip"
+            className="pointer-events-none absolute right-0 top-12 z-50 w-56 rounded-lg bg-[#0F172A] p-3 text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
+          >
+            <p className="truncate text-xs font-semibold">{userDisplayName || userEmail}</p>
+            <p className="mt-1 truncate text-[11px] text-[#CBD5E1]">{userEmail}</p>
+            <p className="mt-1 text-[10px] text-[#94A3B8]">Connecté</p>
+            <span className="absolute right-3 bottom-full border-x-4 border-b-4 border-x-transparent border-b-[#0F172A]" />
           </div>
           <div className="hidden xl:block text-left">
             <p className="text-xs font-semibold text-[#0F172A] leading-tight truncate max-w-[140px]">

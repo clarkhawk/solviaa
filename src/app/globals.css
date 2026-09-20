@@ -27,6 +27,39 @@ body {
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
+html.dark body {
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+html.dark [class~="bg-white"] {
+  background-color: #1e293b !important;
+}
+
+html.dark [class~="bg-[#F8FAFC]"] {
+  background-color: #0f172a !important;
+}
+
+html.dark [class~="text-[#0F172A]"] {
+  color: #f8fafc !important;
+}
+
+html.dark [class~="text-[#64748B]"] {
+  color: #94a3b8 !important;
+}
+
+html.dark [class~="border-[#E2E8F0]"] {
+  border-color: #334155 !important;
+}
+
+html.dark input,
+html.dark textarea,
+html.dark select {
+  color: #f8fafc;
+  background-color: #1e293b;
+  border-color: #334155;
+}
+
 /* Neutralisation du jaune imposé par l'autocomplétion Chrome / Safari */
 input:-webkit-autofill,
 input:-webkit-autofill:hover, 

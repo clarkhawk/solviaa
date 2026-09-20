@@ -27,6 +27,11 @@ export async function getAuthContext(): Promise<AuthContext> {
     organizationId: dbUser.organizationId,
     role: dbUser.role,
     email: dbUser.email,
+    displayName: typeof user.user_metadata?.full_name === "string"
+      ? user.user_metadata.full_name
+      : typeof user.user_metadata?.name === "string"
+        ? user.user_metadata.name
+        : undefined,
     canReceiveAlerts: dbUser.canReceiveAlerts,
     canRelanceClients: dbUser.canRelanceClients,
   };

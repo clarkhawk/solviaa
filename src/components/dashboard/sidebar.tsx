@@ -29,12 +29,15 @@ import {
   Bot,
   LogOut,
   HelpCircle,
+  Moon,
   Building2,
   PanelLeftClose,
   PanelLeftOpen,
+  Sun,
 } from "lucide-react";
 
 const SIDEBAR_COLLAPSED_KEY = "solvia-sidebar-collapsed";
+const DARK_MODE_KEY = "solvia-dark-mode";
 
 /**
  * Structure d'un élément de navigation.
@@ -72,12 +75,16 @@ export function Sidebar({ userRole }: { userRole: UserRole }) {
   const pathname = usePathname();
   const router = useRouter();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const visibleSettingsNav = settingsNav.filter(
     (item) => !item.permission || roleHasPermission(userRole, item.permission),
   );
 
   useEffect(() => {
     setIsCollapsed(window.localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true");
+    const darkModeEnabled = window.localStorage.getItem(DARK_MODE_KEY) === "true";
+    setIsDarkMode(darkModeEnabled);
+    document.documentElement.classList.toggle("dark", darkModeEnabled);
   }, []);
 
   function toggleSidebar() {
@@ -85,6 +92,15 @@ export function Sidebar({ userRole }: { userRole: UserRole }) {
       const nextCollapsed = !collapsed;
       window.localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(nextCollapsed));
       return nextCollapsed;
+    });
+  }
+
+  function toggleDarkMode() {
+    setIsDarkMode((enabled) => {
+      const nextEnabled = !enabled;
+      document.documentElement.classList.toggle("dark", nextEnabled);
+      window.localStorage.setItem(DARK_MODE_KEY, String(nextEnabled));
+      return nextEnabled;
     });
   }
 
@@ -192,23 +208,30 @@ export function Sidebar({ userRole }: { userRole: UserRole }) {
           </nav>
         </div>
 
-        {/* Bloc d'aide & support */}
-        <div className={cn("mt-auto overflow-hidden rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] text-xs transition-[height,opacity,padding] duration-200", isCollapsed ? "h-0 border-0 p-0 opacity-0" : "p-4 opacity-100")}>
-          <div className="flex items-center gap-2 text-[#0F172A] font-semibold mb-1">
-            <HelpCircle className="h-4 w-4 text-[#4F46E5]" />
-            <span>Support & Documentation</span>
-          </div>
-          <p className="text-[11px] text-[#64748B] mb-3">
-            Besoin d&apos;aide pour configurer vos relances automatiques ?
-          </p>
+        {/* Aide et apparence */}
+        <div className={cn("mt-auto flex gap-2", isCollapsed ? "flex-col" : "flex-row")}>
           <a
-            href="https://github.com"
+            href="https://github.com/clarkhawk"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-block text-[11px] font-semibold text-[#4F46E5] hover:underline"
+            aria-label="Aide et documentation"
+            title={isCollapsed ? "Aide et documentation" : undefined}
+            className={cn("flex items-center rounded-xl py-2 text-xs font-semibold text-[#64748B] transition-colors hover:bg-[#F8FAFC] hover:text-[#4F46E5]", isCollapsed ? "justify-center px-3" : "flex-1 gap-3 px-3")}
           >
-            Consulter les guides &rarr;
+            <HelpCircle className="h-4 w-4 shrink-0" />
+            <span className={cn("overflow-hidden whitespace-nowrap transition-[width,opacity] duration-200", isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100")}>Aide</span>
           </a>
+          <button
+            type="button"
+            onClick={toggleDarkMode}
+            aria-pressed={isDarkMode}
+            aria-label={isDarkMode ? "Activer le mode clair" : "Activer le mode sombre"}
+            title={isCollapsed ? (isDarkMode ? "Mode clair" : "Mode sombre") : undefined}
+            className={cn("flex items-center rounded-xl py-2 text-xs font-semibold text-[#64748B] transition-colors hover:bg-[#F8FAFC] hover:text-[#4F46E5]", isCollapsed ? "justify-center px-3" : "flex-1 gap-3 px-3")}
+          >
+            {isDarkMode ? <Sun className="h-4 w-4 shrink-0" /> : <Moon className="h-4 w-4 shrink-0" />}
+            <span className={cn("overflow-hidden whitespace-nowrap transition-[width,opacity] duration-200", isCollapsed ? "w-0 opacity-0" : "w-auto opacity-100")}>{isDarkMode ? "Mode clair" : "Mode sombre"}</span>
+          </button>
         </div>
       </div>
 
